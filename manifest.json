@@ -1,0 +1,18 @@
+{
+  "name": "Agenda Docente",
+  "short_name": "Agendadocente",
+  "start_url": "/agenda-docente/index.html",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "/agenda-docente/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/agenda-docente/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
