@@ -2,7 +2,7 @@
   "name": "Agenda Docente",
   "short_name": "Agenda",
   "description": "Agenda completa para docentes",
-  "start_url": "/agenda-docente/index.html",
+  "start_url": "/agenda-docente/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#3B82F6",
