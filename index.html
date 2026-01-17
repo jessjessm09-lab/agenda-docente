@@ -8,14 +8,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Agenda Docente">
     <title>Agenda Docente</title>
-    <link rel="manifest" href="/agenda-docente/manifest.json">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -28,29 +25,88 @@
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #555; }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3B82F6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
-    <script>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        
+        // CONFIGURACIÓN SUPABASE
+        const SUPABASE_URL = 'https://wzuujtzhhzxmidebdopt.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6dXVqdHpoaHp4bWlkZWJkb3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcxNTc0NTksImV4cCI6MjA1MjczMzQ1OX0.Pzr2aJN8KY7_vxJCB2-bKwZx2e-vN9kYQKMxJPQqCiI';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // STORAGE CON SUPABASE
         window.storage = {
             async get(key) {
                 try {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (!user) {
+                        const value = localStorage.getItem(key);
+                        return value ? { value } : null;
+                    }
+                    
+                    const { data, error } = await supabase
+                        .from('user_data')
+                        .select('data_value')
+                        .eq('user_id', user.id)
+                        .eq('data_key', key)
+                        .single();
+                    
+                    if (error || !data) return null;
+                    return { value: JSON.stringify(data.data_value) };
+                } catch (err) {
                     const value = localStorage.getItem(key);
                     return value ? { value } : null;
-                } catch { return null; }
+                }
             },
             async set(key, value) {
                 try {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (!user) {
+                        localStorage.setItem(key, value);
+                        return { key, value };
+                    }
+                    
+                    const dataValue = typeof value === 'string' ? JSON.parse(value) : value;
+                    
+                    const { error } = await supabase
+                        .from('user_data')
+                        .upsert({
+                            user_id: user.id,
+                            data_key: key,
+                            data_value: dataValue,
+                            updated_at: new Date().toISOString()
+                        }, {
+                            onConflict: 'user_id,data_key'
+                        });
+                    
+                    if (error) throw error;
                     localStorage.setItem(key, value);
                     return { key, value };
-                } catch { return null; }
+                } catch (err) {
+                    localStorage.setItem(key, value);
+                    return { key, value };
+                }
             }
         };
-    </script>
-    <script type="text/babel">
-        const { useState, useEffect } = React;
-// ICONOS SVG
+
+        // ICONOS SVG
         const School = (p) => <svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>;
         const BookOpen = (p) => <svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>;
         const Calendar = (p) => <svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>;
@@ -67,9 +123,21 @@
         const Save = (p) => <svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>;
         const FileText = (p) => <svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>;
         const Edit2 = (p) => <svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>;
+        const LogOut = (p) => <svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>;
+        const Cloud = (p) => <svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>;
+        const Mail = (p) => <svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>;
+        const Lock = (p) => <svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>;
 
         // COMPONENTE PRINCIPAL
         const AgendaDocente = () => {
+            const [usuario, setUsuario] = useState(null);
+            const [cargandoAuth, setCargandoAuth] = useState(true);
+            const [pantallaAuth, setPantallaAuth] = useState('login');
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [errorAuth, setErrorAuth] = useState('');
+            const [sincronizando, setSincronizando] = useState(false);
+            
             const [pantalla, setPantalla] = useState('inicio');
             const [docente, setDocente] = useState('');
             const [escuelas, setEscuelas] = useState([]);
@@ -84,7 +152,7 @@
             const [notas, setNotas] = useState({});
             const [libroTemas, setLibroTemas] = useState({});
             const [tema, setTema] = useState('azul');
-const [textoEscuela, setTextoEscuela] = useState('');
+            const [textoEscuela, setTextoEscuela] = useState('');
             const [textoMateria, setTextoMateria] = useState('');
             const [textoCurso, setTextoCurso] = useState('');
             const [textoAlumno, setTextoAlumno] = useState('');
@@ -123,9 +191,88 @@ const [textoEscuela, setTextoEscuela] = useState('');
 
             const col = colores[tema];
 
+            // VERIFICAR SESIÓN AL CARGAR
             useEffect(() => {
-                cargar();
+                const verificarSesion = async () => {
+                    try {
+                        const { data: { session } } = await supabase.auth.getSession();
+                        if (session) {
+                            setUsuario(session.user);
+                            await cargar();
+                        }
+                    } catch (error) {
+                        console.error('Error verificando sesión:', error);
+                    } finally {
+                        setCargandoAuth(false);
+                    }
+                };
+                
+                verificarSesion();
+
+                const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+                    if (event === 'SIGNED_IN') {
+                        setUsuario(session.user);
+                        await cargar();
+                    } else if (event === 'SIGNED_OUT') {
+                        setUsuario(null);
+                        setPantalla('inicio');
+                    }
+                });
+
+                return () => subscription.unsubscribe();
             }, []);
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                setErrorAuth('');
+                setSincronizando(true);
+
+                try {
+                    const { data, error } = await supabase.auth.signInWithPassword({
+                        email,
+                        password
+                    });
+
+                    if (error) throw error;
+                    setUsuario(data.user);
+                    await cargar();
+                } catch (error) {
+                    setErrorAuth(error.message || 'Error al iniciar sesión');
+                } finally {
+                    setSincronizando(false);
+                }
+            };
+
+            const handleRegister = async (e) => {
+                e.preventDefault();
+                setErrorAuth('');
+                setSincronizando(true);
+
+                try {
+                    const { data, error } = await supabase.auth.signUp({
+                        email,
+                        password
+                    });
+
+                    if (error) throw error;
+                    alert('¡Cuenta creada! Revisa tu email para confirmar tu cuenta.');
+                    setPantallaAuth('login');
+                    setEmail('');
+                    setPassword('');
+                } catch (error) {
+                    setErrorAuth(error.message || 'Error al registrarse');
+                } finally {
+                    setSincronizando(false);
+                }
+            };
+
+            const handleLogout = async () => {
+                if (window.confirm('¿Cerrar sesión?')) {
+                    await supabase.auth.signOut();
+                    setUsuario(null);
+                    setPantalla('inicio');
+                }
+            };
 
             const cargar = async () => {
                 try {
@@ -159,7 +306,7 @@ const [textoEscuela, setTextoEscuela] = useState('');
                     if (datos[11]?.value) setEventosCalendario(JSON.parse(datos[11].value));
                     if (datos[12]?.value) setNotasPlanner(JSON.parse(datos[12].value));
                 } catch (err) {
-                    console.log('Primera vez');
+                    console.log('Primera vez o error cargando:', err);
                 }
             };
 
@@ -168,7 +315,7 @@ const [textoEscuela, setTextoEscuela] = useState('');
                     const dato = typeof valor === 'string' ? valor : JSON.stringify(valor);
                     await window.storage.set(clave, dato);
                 } catch (err) {
-                    console.error('Error:', err);
+                    console.error('Error guardando:', err);
                 }
             };
 
@@ -179,18 +326,193 @@ const [textoEscuela, setTextoEscuela] = useState('');
                 setIdCurso(null);
                 setIdAlumno(null);
             };
-// RENDERIZADO SEGÚN PANTALLA
+
+            // PANTALLA DE CARGA
+            if (cargandoAuth) {
+                return (
+                    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="spinner mb-4"></div>
+                            <p className="text-gray-600">Cargando...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            // PANTALLA DE LOGIN/REGISTRO
+            if (!usuario) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
+                        <div className="max-w-md w-full">
+                            <div className="bg-white rounded-2xl shadow-2xl p-8">
+                                <div className="text-center mb-8">
+                                    <div className="bg-blue-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <School className="w-10 h-10 text-blue-600" />
+                                    </div>
+                                    <h1 className="text-3xl font-bold text-gray-800 mb-2">Agenda Docente</h1>
+                                    <p className="text-gray-600 flex items-center justify-center gap-2">
+                                        <Cloud className="w-5 h-5" />
+                                        Tus datos seguros en la nube
+                                    </p>
+                                </div>
+
+                                {pantallaAuth === 'login' ? (
+                                    <form onSubmit={handleLogin} className="space-y-4">
+                                        <h2 className="text-xl font-bold text-center mb-4">Iniciar Sesión</h2>
+                                        
+                                        {errorAuth && (
+                                            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                                                {errorAuth}
+                                            </div>
+                                        )}
+
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2 flex items-center gap-2">
+                                                <Mail className="w-4 h-4" />
+                                                Email
+                                            </label>
+                                            <input 
+                                                type="email"
+                                                value={email}
+                                                onChange={(e) => setEmail(e.target.value)}
+                                                placeholder="tu@email.com"
+                                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                required
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2 flex items-center gap-2">
+                                                <Lock className="w-4 h-4" />
+                                                Contraseña
+                                            </label>
+                                            <input 
+                                                type="password"
+                                                value={password}
+                                                onChange={(e) => setPassword(e.target.value)}
+                                                placeholder="••••••••"
+                                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                required
+                                            />
+                                        </div>
+
+                                        <button 
+                                            type="submit"
+                                            disabled={sincronizando}
+                                            className="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
+                                            {sincronizando ? (
+                                                <>
+                                                    <div className="spinner border-white" style={{width: '20px', height: '20px', borderWidth: '2px'}}></div>
+                                                    Iniciando sesión...
+                                                </>
+                                            ) : (
+                                                'Iniciar Sesión'
+                                            )}
+                                        </button>
+
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                setPantallaAuth('register');
+                                                setErrorAuth('');
+                                            }}
+                                            className="w-full text-blue-600 text-sm hover:underline font-semibold">
+                                            ¿No tienes cuenta? Regístrate
+                                        </button>
+                                    </form>
+                        ) : (
+                                    <form onSubmit={handleRegister} className="space-y-4">
+                                        <h2 className="text-xl font-bold text-center mb-4">Crear Cuenta</h2>
+                                        
+                                        {errorAuth && (
+                                            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                                                {errorAuth}
+                                            </div>
+                                        )}
+
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2 flex items-center gap-2">
+                                                <Mail className="w-4 h-4" />
+                                                Email
+                                            </label>
+                                            <input 
+                                                type="email"
+                                                value={email}
+                                                onChange={(e) => setEmail(e.target.value)}
+                                                placeholder="tu@email.com"
+                                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                                required
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold mb-2 flex items-center gap-2">
+                                                <Lock className="w-4 h-4" />
+                                                Contraseña
+                                            </label>
+                                            <input 
+                                                type="password"
+                                                value={password}
+                                                onChange={(e) => setPassword(e.target.value)}
+                                                placeholder="••••••••"
+                                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                                minLength="6"
+                                                required
+                                            />
+                                            <p className="text-xs text-gray-500 mt-1">Mínimo 6 caracteres</p>
+                                        </div>
+
+                                        <button 
+                                            type="submit"
+                                            disabled={sincronizando}
+                                            className="w-full bg-green-600 text-white p-3 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
+                                            {sincronizando ? (
+                                                <>
+                                                    <div className="spinner border-white" style={{width: '20px', height: '20px', borderWidth: '2px'}}></div>
+                                                    Creando cuenta...
+                                                </>
+                                            ) : (
+                                                'Crear Cuenta'
+                                            )}
+                                        </button>
+
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                setPantallaAuth('login');
+                                                setErrorAuth('');
+                                            }}
+                                            className="w-full text-blue-600 text-sm hover:underline font-semibold">
+                                            ¿Ya tienes cuenta? Inicia sesión
+                                        </button>
+                                    </form>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // RENDERIZADO SEGÚN PANTALLA
             switch(pantalla) {
                 case 'inicio':
                     return (
                         <div className="min-h-screen bg-gray-50 p-4">
                             <div className="max-w-2xl mx-auto space-y-4">
                                 <div className={`bg-gradient-to-r ${col.g} text-white p-6 rounded-lg shadow-lg`}>
-                                    <h1 className="text-3xl font-bold mb-2">Agenda Docente</h1>
+                                    <div className="flex justify-between items-start mb-2">
+                                        <h1 className="text-3xl font-bold">Agenda Docente</h1>
+                                        <button
+                                            onClick={handleLogout}
+                                            className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition"
+                                            title="Cerrar sesión">
+                                            <LogOut className="w-5 h-5" />
+                                        </button>
+                                    </div>
                                     {docente ? (
                                         <p className="text-xl">Prof. {docente}</p>
                                     ) : (
-                                        <input 
+                                        <input
                                             type="text"
                                             placeholder="Tu nombre"
                                             onBlur={(e) => {
@@ -202,20 +524,27 @@ const [textoEscuela, setTextoEscuela] = useState('');
                                             className="w-full p-2 rounded text-gray-800"
                                         />
                                     )}
+                                    <div className="mt-3 flex items-center gap-2 text-sm opacity-90">
+                                        <Cloud className="w-4 h-4" />
+                                        <span>Sincronizado en la nube</span>
+                                    </div>
                                 </div>
-                                <button 
+
+                                <button
                                     onClick={() => setPantalla('planner-mensual')}
                                     className="w-full bg-white p-6 rounded-lg shadow hover:shadow-md flex items-center justify-center gap-3">
                                     <Calendar className={`w-10 h-10 ${col.t}`} />
                                     <span className="text-xl font-semibold">Planner Mensual</span>
                                 </button>
-                                <button 
+
+                                <button
                                     onClick={() => setPantalla('lista-escuelas')}
                                     className="w-full bg-white p-6 rounded-lg shadow hover:shadow-md flex items-center justify-center gap-3">
                                     <School className={`w-10 h-10 ${col.t}`} />
                                     <span className="text-xl font-semibold">Mis Escuelas</span>
                                 </button>
-                                <button 
+
+                                <button
                                     onClick={() => setPantalla('config-tema')}
                                     className="w-full bg-white p-4 rounded-lg shadow hover:shadow-md flex items-center justify-center gap-2">
                                     <Palette className="w-6 h-6" />
@@ -265,14 +594,14 @@ const [textoEscuela, setTextoEscuela] = useState('');
                                     <h2 className="text-2xl font-bold">Escuelas</h2>
                                 </div>
                                 <div className="bg-white p-4 rounded-lg shadow mb-4 flex gap-2">
-                                    <input 
+                                    <input
                                         type="text"
                                         value={textoEscuela}
                                         onChange={(e) => setTextoEscuela(e.target.value)}
                                         placeholder="Nueva escuela"
                                         className="flex-1 p-3 border rounded-lg"
                                     />
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             if (textoEscuela.trim()) {
                                                 const nuevas = [...escuelas, { id: Date.now(), nombre: textoEscuela }];
@@ -288,7 +617,7 @@ const [textoEscuela, setTextoEscuela] = useState('');
                                 <div className="space-y-2">
                                     {escuelas.map(esc => (
                                         <div key={esc.id} className="bg-white p-4 rounded-lg shadow flex justify-between items-center">
-                                            <button 
+                                            <button
                                                 onClick={() => {
                                                     setIdEscuela(esc.id);
                                                     setPantalla('menu-escuela');
@@ -296,7 +625,7 @@ const [textoEscuela, setTextoEscuela] = useState('');
                                                 className="flex-1 text-left font-semibold">
                                                 {esc.nombre}
                                             </button>
-                                            <button 
+                                            <button
                                                 onClick={() => {
                                                     if (window.confirm('¿Eliminar?')) {
                                                         const filtradas = escuelas.filter(e => e.id !== esc.id);
@@ -313,13 +642,14 @@ const [textoEscuela, setTextoEscuela] = useState('');
                             </div>
                         </div>
                     );
-case 'menu-escuela':
+
+                case 'menu-escuela':
                     const esc = escuelas.find(e => e.id === idEscuela);
                     return (
                         <div className="min-h-screen bg-gray-50 p-4">
                             <div className="max-w-2xl mx-auto">
                                 <div className="flex items-center gap-4 mb-6">
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             setPantalla('lista-escuelas');
                                             setIdEscuela(null);
@@ -330,13 +660,13 @@ case 'menu-escuela':
                                     <h2 className="text-2xl font-bold">{esc?.nombre || 'Escuela'}</h2>
                                 </div>
                                 <div className="space-y-4">
-                                    <button 
+                                    <button
                                         onClick={() => setPantalla('horarios')}
                                         className="w-full bg-white p-6 rounded-lg shadow hover:shadow-md flex items-center justify-center gap-3">
                                         <Clock className="w-10 h-10 text-purple-600" />
                                         <span className="text-xl font-semibold">Horarios</span>
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={() => setPantalla('lista-materias')}
                                         className="w-full bg-white p-6 rounded-lg shadow hover:shadow-md flex items-center justify-center gap-3">
                                         <BookOpen className="w-10 h-10 text-green-600" />
@@ -346,7 +676,8 @@ case 'menu-escuela':
                             </div>
                         </div>
                     );
-case 'horarios':
+
+                case 'horarios':
                     const escHorario = escuelas.find(e => e.id === idEscuela);
                     const dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
                     const numerosHora = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -360,7 +691,7 @@ case 'horarios':
                             <div className="min-h-screen bg-gray-50 p-4">
                                 <div className="max-w-2xl mx-auto">
                                     <div className="flex items-center gap-4 mb-6">
-                                        <button 
+                                        <button
                                             onClick={() => {
                                                 setEditandoRangoHora(null);
                                                 setRangoHorario('');
@@ -376,7 +707,7 @@ case 'horarios':
                                     <div className="bg-white p-4 rounded-lg shadow space-y-3">
                                         <div>
                                             <label className="block mb-1 font-semibold text-sm">Rango Horario (Ej: 13:20 - 14:00)</label>
-                                            <input 
+                                            <input
                                                 type="text"
                                                 value={rangoHorario}
                                                 onChange={(e) => setRangoHorario(e.target.value)}
@@ -387,7 +718,7 @@ case 'horarios':
                                             <p className="text-xs text-gray-500 mt-1">40 minutos por hora módulo</p>
                                         </div>
                                         <div className="flex gap-2">
-                                            <button 
+                                            <button
                                                 onClick={() => {
                                                     if (rangoHorario.trim()) {
                                                         const nuevos = { ...horasPersonalizadas, [claveRangos]: { ...rangosHorarios, [editandoRangoHora]: rangoHorario } };
@@ -400,7 +731,7 @@ case 'horarios':
                                                 className={`flex-1 ${col.p} text-white p-3 rounded-lg font-semibold`}>
                                                 Guardar
                                             </button>
-                                            <button 
+                                            <button
                                                 onClick={() => {
                                                     const { [editandoRangoHora]: _, ...resto } = rangosHorarios;
                                                     const nuevos = { ...horasPersonalizadas, [claveRangos]: resto };
@@ -424,7 +755,7 @@ case 'horarios':
                             <div className="min-h-screen bg-gray-50 p-4">
                                 <div className="max-w-2xl mx-auto">
                                     <div className="flex items-center gap-4 mb-6">
-                                        <button 
+                                        <button
                                             onClick={() => {
                                                 setEditandoHorario(null);
                                                 setTextoHorario('');
@@ -440,7 +771,7 @@ case 'horarios':
                                     <div className="bg-white p-4 rounded-lg shadow space-y-3">
                                         <div>
                                             <label className="block mb-1 font-semibold text-sm">Materia/Actividad</label>
-                                            <input 
+                                            <input
                                                 type="text"
                                                 value={textoHorario}
                                                 onChange={(e) => setTextoHorario(e.target.value)}
@@ -450,7 +781,7 @@ case 'horarios':
                                             />
                                         </div>
                                         <div className="flex gap-2">
-                                            <button 
+                                            <button
                                                 onClick={() => {
                                                     const clave = `${editandoHorario.dia}-${editandoHorario.hora}`;
                                                     const nuevos = { ...horarios, [claveHorario]: { ...datosHorario, [clave]: textoHorario } };
@@ -462,7 +793,7 @@ case 'horarios':
                                                 className={`flex-1 ${col.p} text-white p-3 rounded-lg font-semibold`}>
                                                 Guardar
                                             </button>
-                                            <button 
+                                            <button
                                                 onClick={() => {
                                                     const clave = `${editandoHorario.dia}-${editandoHorario.hora}`;
                                                     const { [clave]: _, ...resto } = datosHorario;
@@ -491,7 +822,6 @@ case 'horarios':
                                     </button>
                                     <h2 className="text-2xl font-bold">Horarios - {escHorario?.nombre || ''}</h2>
                                 </div>
-
                                 <div className="bg-white rounded-lg shadow overflow-x-auto mb-4">
                                     <table className="w-full text-sm">
                                         <thead className={`${col.p} text-white`}>
@@ -518,7 +848,7 @@ case 'horarios':
                                                 return (
                                                     <tr key={numHora} className="border-b">
                                                         <td className="p-3 text-center font-bold text-lg">{numHora}</td>
-                                                        <td 
+                                                        <td
                                                             onClick={() => {
                                                                 setEditandoRangoHora(numHora);
                                                                 setRangoHorario(rangoHora || '');
@@ -536,8 +866,8 @@ case 'horarios':
                                                             const clave = `${dia}-${numHora}`;
                                                             const contenido = datosHorario[clave];
                                                             return (
-                                                                <td 
-                                                                    key={clave} 
+                                                                <td
+                                                                    key={clave}
                                                                     onClick={() => {
                                                                         setEditandoHorario({ dia, hora: numHora });
                                                                         setTextoHorario(contenido || '');
@@ -559,7 +889,6 @@ case 'horarios':
                                         </tbody>
                                     </table>
                                 </div>
-
                                 <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
                                     <p className="text-sm text-blue-800 mb-2">
                                         <strong>💡 Cómo usar:</strong>
@@ -588,14 +917,14 @@ case 'horarios':
                                     <h2 className="text-2xl font-bold">Materias - {escMaterias?.nombre || ''}</h2>
                                 </div>
                                 <div className="bg-white p-4 rounded-lg shadow mb-4 flex gap-2">
-                                    <input 
+                                    <input
                                         type="text"
                                         value={textoMateria}
                                         onChange={(e) => setTextoMateria(e.target.value)}
                                         placeholder="Nueva materia"
                                         className="flex-1 p-3 border rounded-lg"
                                     />
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             if (textoMateria.trim()) {
                                                 const nuevas = { ...materias, [idEscuela]: [...listaMaterias, { id: Date.now(), nombre: textoMateria }] };
@@ -611,7 +940,7 @@ case 'horarios':
                                 <div className="space-y-2">
                                     {listaMaterias.map(mat => (
                                         <div key={mat.id} className="bg-white p-4 rounded-lg shadow flex justify-between items-center">
-                                            <button 
+                                            <button
                                                 onClick={() => {
                                                     setIdMateria(mat.id);
                                                     setPantalla('menu-materia');
@@ -619,7 +948,7 @@ case 'horarios':
                                                 className="flex-1 text-left font-semibold">
                                                 {mat.nombre}
                                             </button>
-                                            <button 
+                                            <button
                                                 onClick={() => {
                                                     if (window.confirm('¿Eliminar?')) {
                                                         const filtradas = listaMaterias.filter(m => m.id !== mat.id);
@@ -646,7 +975,7 @@ case 'horarios':
                         <div className="min-h-screen bg-gray-50 p-4">
                             <div className="max-w-2xl mx-auto">
                                 <div className="flex items-center gap-4 mb-6">
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             setPantalla('lista-materias');
                                             setIdMateria(null);
@@ -660,25 +989,26 @@ case 'horarios':
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <button 
+                                    <button
                                         onClick={() => setPantalla('cursos')}
                                         className="bg-white p-6 rounded-lg shadow hover:shadow-md flex flex-col items-center gap-2">
                                         <Users className="w-8 h-8 text-blue-600" />
                                         <span className="font-semibold">Cursos</span>
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={() => setPantalla('asistencia')}
                                         className="bg-white p-6 rounded-lg shadow hover:shadow-md flex flex-col items-center gap-2">
                                         <ClipboardList className="w-8 h-8 text-red-600" />
                                         <span className="font-semibold">Asistencia</span>
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={() => setPantalla('notas')}
                                         className="bg-white p-6 rounded-lg shadow hover:shadow-md flex flex-col items-center gap-2">
                                         <Calendar className="w-8 h-8 text-indigo-600" />
-                                        <span className="font-semibold">Notas</span>
+                                        <span className="font
+                                        -semibold">Notas</span>
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={() => setPantalla('libro')}
                                         className="bg-white p-6 rounded-lg shadow hover:shadow-md flex flex-col items-center gap-2">
                                         <FileText className="w-8 h-8 text-teal-600" />
@@ -688,10 +1018,10 @@ case 'horarios':
                             </div>
                         </div>
                     );
-case 'cursos':
+
+                case 'cursos':
                     const claveCursos = `${idEscuela}-${idMateria}`;
                     const listaCursos = cursos[claveCursos] || [];
-                    
                     if (!idCurso) {
                         return (
                             <div className="min-h-screen bg-gray-50 p-4">
@@ -703,14 +1033,14 @@ case 'cursos':
                                         <h2 className="text-2xl font-bold">Cursos</h2>
                                     </div>
                                     <div className="bg-white p-4 rounded-lg shadow mb-4 flex gap-2">
-                                        <input 
+                                        <input
                                             type="text"
                                             value={textoCurso}
                                             onChange={(e) => setTextoCurso(e.target.value)}
                                             placeholder="Ej: 1° A"
                                             className="flex-1 p-3 border rounded-lg"
                                         />
-                                        <button 
+                                        <button
                                             onClick={() => {
                                                 if (textoCurso.trim()) {
                                                     const nuevos = { ...cursos, [claveCursos]: [...listaCursos, { id: Date.now(), nombre: textoCurso }] };
@@ -726,12 +1056,12 @@ case 'cursos':
                                     <div className="space-y-2">
                                         {listaCursos.map(cur => (
                                             <div key={cur.id} className="bg-white p-4 rounded-lg shadow flex justify-between items-center">
-                                                <button 
+                                                <button
                                                     onClick={() => setIdCurso(cur.id)}
                                                     className="flex-1 text-left font-semibold">
                                                     {cur.nombre}
                                                 </button>
-                                                <button 
+                                                <button
                                                     onClick={() => {
                                                         if (window.confirm('¿Eliminar curso?')) {
                                                             const filtrados = listaCursos.filter(c => c.id !== cur.id);
@@ -750,11 +1080,9 @@ case 'cursos':
                             </div>
                         );
                     }
-                    
                     const curso = listaCursos.find(c => c.id === idCurso);
                     const claveAlumnos = `${claveCursos}-${idCurso}`;
                     const listaAlumnos = alumnos[claveAlumnos] || [];
-                    
                     return (
                         <div className="min-h-screen bg-gray-50 p-4">
                             <div className="max-w-2xl mx-auto">
@@ -765,14 +1093,14 @@ case 'cursos':
                                     <h2 className="text-xl font-bold">Alumnos - {curso?.nombre || ''}</h2>
                                 </div>
                                 <div className="bg-white p-4 rounded-lg shadow mb-4 flex gap-2">
-                                    <input 
+                                    <input
                                         type="text"
                                         value={textoAlumno}
                                         onChange={(e) => setTextoAlumno(e.target.value)}
                                         placeholder="Nombre alumno"
                                         className="flex-1 p-3 border rounded-lg"
                                     />
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             if (textoAlumno.trim()) {
                                                 const nuevos = { ...alumnos, [claveAlumnos]: [...listaAlumnos, { id: Date.now(), nombre: textoAlumno }] };
@@ -789,7 +1117,7 @@ case 'cursos':
                                     {listaAlumnos.map(alu => (
                                         <div key={alu.id} className="bg-white p-4 rounded-lg shadow flex justify-between items-center">
                                             <span className="font-semibold">{alu.nombre}</span>
-                                            <button 
+                                            <button
                                                 onClick={() => {
                                                     const filtrados = listaAlumnos.filter(a => a.id !== alu.id);
                                                     const nuevos = { ...alumnos, [claveAlumnos]: filtrados };
@@ -805,10 +1133,10 @@ case 'cursos':
                             </div>
                         </div>
                     );
-case 'asistencia':
+
+                case 'asistencia':
                     const claveAsistCursos = `${idEscuela}-${idMateria}`;
                     const listaCursosAsist = cursos[claveAsistCursos] || [];
-
                     if (!idCurso) {
                         return (
                             <div className="min-h-screen bg-gray-50 p-4">
@@ -821,7 +1149,7 @@ case 'asistencia':
                                     </div>
                                     <div className="space-y-2">
                                         {listaCursosAsist.map(cur => (
-                                            <button 
+                                            <button
                                                 key={cur.id}
                                                 onClick={() => setIdCurso(cur.id)}
                                                 className="w-full bg-white p-4 rounded-lg shadow hover:shadow-md text-left font-semibold">
@@ -833,11 +1161,9 @@ case 'asistencia':
                             </div>
                         );
                     }
-
                     const cursoAsist = listaCursosAsist.find(c => c.id === idCurso);
                     const claveAlumnosAsist = `${claveAsistCursos}-${idCurso}`;
                     const listaAlumnosAsist = alumnos[claveAlumnosAsist] || [];
-
                     if (!idAlumno) {
                         const calcularAsistencia = (aid) => {
                             const registros = Object.entries(asistencias).filter(([k]) => k.startsWith(`${claveAlumnosAsist}-${aid}-`));
@@ -846,13 +1172,11 @@ case 'asistencia':
                             const porc = total > 0 ? (presentes / total) * 100 : 100;
                             return { total, presentes, ausentes: total - presentes, porc };
                         };
-
                         const getColor = (p) => {
                             if (p < 50) return 'bg-red-100 border-red-500';
                             if (p < 75) return 'bg-orange-100 border-orange-500';
                             return 'bg-blue-100 border-blue-500';
                         };
-
                         return (
                             <div className="min-h-screen bg-gray-50 p-4">
                                 <div className="max-w-2xl mx-auto">
@@ -866,7 +1190,7 @@ case 'asistencia':
                                         {listaAlumnosAsist.map(alu => {
                                             const stats = calcularAsistencia(alu.id);
                                             return (
-                                                <button 
+                                                <button
                                                     key={alu.id}
                                                     onClick={() => setIdAlumno(alu.id)}
                                                     className={`w-full p-4 rounded-lg shadow border-2 text-left ${getColor(stats.porc)}`}>
@@ -884,7 +1208,6 @@ case 'asistencia':
                             </div>
                         );
                     }
-
                     const alumnoAsist = listaAlumnosAsist.find(a => a.id === idAlumno);
                     const registrosAsist = Object.entries(asistencias)
                         .filter(([k]) => k.startsWith(`${claveAlumnosAsist}-${idAlumno}-`))
@@ -893,7 +1216,6 @@ case 'asistencia':
                             estado: v
                         }))
                         .sort((a, b) => b.fecha.localeCompare(a.fecha));
-                    
                     return (
                         <div className="min-h-screen bg-gray-50 p-4">
                             <div className="max-w-2xl mx-auto">
@@ -906,26 +1228,26 @@ case 'asistencia':
                                 <div className="bg-white p-4 rounded-lg shadow space-y-3 mb-4">
                                     <div>
                                         <label className="block mb-1 font-semibold text-sm">Fecha</label>
-                                        <input 
-                                            type="date" 
-                                            value={fechaAsist} 
+                                        <input
+                                            type="date"
+                                            value={fechaAsist}
                                             onChange={(e) => setFechaAsist(e.target.value)}
-                                            className="w-full p-2 border rounded-lg" 
+                                            className="w-full p-2 border rounded-lg"
                                         />
                                     </div>
                                     <div className="flex gap-2">
-                                        <button 
+                                        <button
                                             onClick={() => setEstadoAsist('P')}
                                             className={`flex-1 p-3 rounded-lg font-semibold ${estadoAsist === 'P' ? 'bg-green-600 text-white' : 'bg-gray-200'}`}>
                                             Presente
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={() => setEstadoAsist('A')}
                                             className={`flex-1 p-3 rounded-lg font-semibold ${estadoAsist === 'A' ? 'bg-red-600 text-white' : 'bg-gray-200'}`}>
                                             Ausente
                                         </button>
                                     </div>
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             if (!fechaAsist || !estadoAsist) {
                                                 alert('Selecciona fecha y estado');
@@ -942,7 +1264,6 @@ case 'asistencia':
                                         Guardar Asistencia
                                     </button>
                                 </div>
-
                                 <div className="bg-white p-4 rounded-lg shadow">
                                     <h3 className="font-bold mb-3">Historial</h3>
                                     <div className="space-y-2">
@@ -962,10 +1283,10 @@ case 'asistencia':
                             </div>
                         </div>
                     );
-case 'notas':
+
+                case 'notas':
                     const claveNotasCursos = `${idEscuela}-${idMateria}`;
                     const listaCursosNotas = cursos[claveNotasCursos] || [];
-
                     if (!idCurso) {
                         return (
                             <div className="min-h-screen bg-gray-50 p-4">
@@ -978,7 +1299,7 @@ case 'notas':
                                     </div>
                                     <div className="space-y-2">
                                         {listaCursosNotas.map(cur => (
-                                            <button 
+                                            <button
                                                 key={cur.id}
                                                 onClick={() => setIdCurso(cur.id)}
                                                 className="w-full bg-white p-4 rounded-lg shadow hover:shadow-md text-left font-semibold">
@@ -990,11 +1311,9 @@ case 'notas':
                             </div>
                         );
                     }
-
                     const cursoNotas = listaCursosNotas.find(c => c.id === idCurso);
                     const claveAlumnosNotas = `${claveNotasCursos}-${idCurso}`;
                     const listaAlumnosNotas = alumnos[claveAlumnosNotas] || [];
-
                     if (!idAlumno) {
                         const calcularPromedio = (aid) => {
                             const notasAlumno = Object.entries(notas)
@@ -1004,7 +1323,6 @@ case 'notas':
                             const prom = notasAlumno.reduce((a, b) => a + b, 0) / notasAlumno.length;
                             return prom.toFixed(1);
                         };
-
                         return (
                             <div className="min-h-screen bg-gray-50 p-4">
                                 <div className="max-w-2xl mx-auto">
@@ -1018,7 +1336,7 @@ case 'notas':
                                         {listaAlumnosNotas.map(alu => {
                                             const prom = calcularPromedio(alu.id);
                                             return (
-                                                <button 
+                                                <button
                                                     key={alu.id}
                                                     onClick={() => setIdAlumno(alu.id)}
                                                     className="w-full bg-white p-4 rounded-lg shadow hover:shadow-md flex justify-between items-center">
@@ -1034,7 +1352,6 @@ case 'notas':
                             </div>
                         );
                     }
-
                     const alumnoNotas = listaAlumnosNotas.find(a => a.id === idAlumno);
                     const notasAlumno = Object.entries(notas)
                         .filter(([k]) => k.startsWith(`${claveAlumnosNotas}-${idAlumno}-`))
@@ -1043,7 +1360,6 @@ case 'notas':
                             ...v
                         }))
                         .sort((a, b) => b.fecha.localeCompare(a.fecha));
-
                     const tiposNotas = {
                         tp: 'Trabajo Práctico',
                         oral: 'Oral',
@@ -1051,7 +1367,6 @@ case 'notas':
                         integ: 'Integradora',
                         otro: 'Otro'
                     };
-                    
                     return (
                         <div className="min-h-screen bg-gray-50 p-4">
                             <div className="max-w-2xl mx-auto">
@@ -1061,14 +1376,13 @@ case 'notas':
                                     </button>
                                     <h2 className="text-xl font-bold">{alumnoNotas?.nombre || ''}</h2>
                                 </div>
-                                
                                 <div className="bg-white p-4 rounded-lg shadow space-y-3 mb-4">
                                     <h3 className="font-bold">Agregar Nota</h3>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="block mb-1 text-sm font-semibold">Trimestre</label>
-                                            <select 
-                                                value={trimestreNota} 
+                                            <select
+                                                value={trimestreNota}
                                                 onChange={(e) => setTrimestreNota(e.target.value)}
                                                 className="w-full p-2 border rounded-lg">
                                                 <option value="1">1° Trimestre</option>
@@ -1078,8 +1392,8 @@ case 'notas':
                                         </div>
                                         <div>
                                             <label className="block mb-1 text-sm font-semibold">Tipo</label>
-                                            <select 
-                                                value={tipoNota} 
+                                            <select
+                                                value={tipoNota}
                                                 onChange={(e) => setTipoNota(e.target.value)}
                                                 className="w-full p-2 border rounded-lg">
                                                 {Object.entries(tiposNotas).map(([k, v]) => (
@@ -1090,7 +1404,7 @@ case 'notas':
                                     </div>
                                     <div>
                                         <label className="block mb-1 text-sm font-semibold">Descripción</label>
-                                        <input 
+                                        <input
                                             type="text"
                                             value={descripcionNota}
                                             onChange={(e) => setDescripcionNota(e.target.value)}
@@ -1101,7 +1415,7 @@ case 'notas':
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="block mb-1 text-sm font-semibold">Nota (1-10)</label>
-                                            <input 
+                                            <input
                                                 type="number"
                                                 min="1"
                                                 max="10"
@@ -1113,7 +1427,7 @@ case 'notas':
                                         </div>
                                         <div>
                                             <label className="block mb-1 text-sm font-semibold">Fecha</label>
-                                            <input 
+                                            <input
                                                 type="date"
                                                 value={fechaNota}
                                                 onChange={(e) => setFechaNota(e.target.value)}
@@ -1121,22 +1435,22 @@ case 'notas':
                                             />
                                         </div>
                                     </div>
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             if (!valorNota || !fechaNota || !descripcionNota) {
                                                 alert('Completa todos los campos');
                                                 return;
                                             }
                                             const k = `${claveAlumnosNotas}-${idAlumno}-${Date.now()}`;
-                                            const nuevasNotas = { 
-                                                ...notas, 
-                                                [k]: { 
-                                                    trimestre: trimestreNota, 
-                                                    tipo: tipoNota, 
-                                                    valor: valorNota, 
+                                            const nuevasNotas = {
+                                                ...notas,
+                                                [k]: {
+                                                    trimestre: trimestreNota,
+                                                    tipo: tipoNota,
+                                                    valor: valorNota,
                                                     fecha: fechaNota,
                                                     descripcion: descripcionNota
-                                                } 
+                                                }
                                             };
                                             setNotas(nuevasNotas);
                                             guardar('notas', nuevasNotas);
@@ -1148,7 +1462,6 @@ case 'notas':
                                         Guardar Nota
                                     </button>
                                 </div>
-
                                 <div className="bg-white p-4 rounded-lg shadow">
                                     <h3 className="font-bold mb-3">Historial de Notas</h3>
                                     <div className="space-y-3">
@@ -1156,7 +1469,6 @@ case 'notas':
                                             const notasTrim = notasAlumno.filter(n => n.trimestre === trim);
                                             if (notasTrim.length === 0) return null;
                                             const promTrim = (notasTrim.reduce((a, b) => a + parseFloat(b.valor), 0) / notasTrim.length).toFixed(1);
-                                            
                                             return (
                                                 <div key={trim} className="border rounded-lg p-3">
                                                     <div className="flex justify-between items-center mb-2">
@@ -1176,7 +1488,7 @@ case 'notas':
                                                                     <span className={`text-lg font-bold ${parseFloat(nota.valor) >= 7 ? 'text-green-600' : parseFloat(nota.valor) >= 4 ? 'text-orange-600' : 'text-red-600'}`}>
                                                                         {nota.valor}
                                                                     </span>
-                                                                    <button 
+                                                                    <button
                                                                         onClick={() => {
                                                                             if (window.confirm('¿Eliminar nota?')) {
                                                                                 const { [nota.id]: _, ...resto } = notas;
@@ -1202,10 +1514,10 @@ case 'notas':
                             </div>
                         </div>
                     );
-case 'libro':
+
+                case 'libro':
                     const claveLibro = `${idEscuela}-${idMateria}`;
                     const registrosLibro = libroTemas[claveLibro] || [];
-
                     if (formLibro) {
                         return (
                             <div className="min-h-screen bg-gray-50 p-4">
@@ -1223,12 +1535,11 @@ case 'libro':
                                         </button>
                                         <h2 className="text-2xl font-bold">Nuevo Registro - Libro de Temas</h2>
                                     </div>
-
                                     <div className="bg-white p-6 rounded-lg shadow space-y-4">
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block mb-1 font-semibold text-sm">Fecha</label>
-                                                <input 
+                                                <input
                                                     type="date"
                                                     value={registroLibro.fecha}
                                                     onChange={(e) => setRegistroLibro({...registroLibro, fecha: e.target.value})}
@@ -1237,7 +1548,7 @@ case 'libro':
                                             </div>
                                             <div>
                                                 <label className="block mb-1 font-semibold text-sm">N° de Folio</label>
-                                                <input 
+                                                <input
                                                     type="text"
                                                     value={registroLibro.folio}
                                                     onChange={(e) => setRegistroLibro({...registroLibro, folio: e.target.value})}
@@ -1246,10 +1557,10 @@ case 'libro':
                                                 />
                                             </div>
                                         </div>
-
                                         <div>
-                                            <label className="block mb-1 font-semibold text-sm">Asignatura</label>
-                                            <input 
+                                            <label className="block
+                                            mb-1 font-semibold text-sm">Asignatura</label>
+                                            <input
                                                 type="text"
                                                 value={registroLibro.asignatura}
                                                 onChange={(e) => setRegistroLibro({...registroLibro, asignatura: e.target.value})}
@@ -1257,11 +1568,10 @@ case 'libro':
                                                 className="w-full p-2 border rounded-lg"
                                             />
                                         </div>
-
                                         <div className="grid grid-cols-3 gap-4">
                                             <div>
                                                 <label className="block mb-1 font-semibold text-sm">Horas</label>
-                                                <input 
+                                                <input
                                                     type="text"
                                                     value={registroLibro.horas}
                                                     onChange={(e) => setRegistroLibro({...registroLibro, horas: e.target.value})}
@@ -1271,7 +1581,7 @@ case 'libro':
                                             </div>
                                             <div>
                                                 <label className="block mb-1 font-semibold text-sm">Presentes</label>
-                                                <input 
+                                                <input
                                                     type="text"
                                                     value={registroLibro.alumnosPresentes}
                                                     onChange={(e) => setRegistroLibro({...registroLibro, alumnosPresentes: e.target.value})}
@@ -1281,7 +1591,7 @@ case 'libro':
                                             </div>
                                             <div>
                                                 <label className="block mb-1 font-semibold text-sm">Ausentes</label>
-                                                <input 
+                                                <input
                                                     type="text"
                                                     value={registroLibro.alumnosAusentes}
                                                     onChange={(e) => setRegistroLibro({...registroLibro, alumnosAusentes: e.target.value})}
@@ -1290,10 +1600,9 @@ case 'libro':
                                                 />
                                             </div>
                                         </div>
-
                                         <div>
                                             <label className="block mb-1 font-semibold text-sm">Unidad Temática</label>
-                                            <input 
+                                            <input
                                                 type="text"
                                                 value={registroLibro.unidad}
                                                 onChange={(e) => setRegistroLibro({...registroLibro, unidad: e.target.value})}
@@ -1301,46 +1610,42 @@ case 'libro':
                                                 className="w-full p-2 border rounded-lg"
                                             />
                                         </div>
-
                                         <div>
                                             <label className="block mb-1 font-semibold text-sm">Contenidos Desarrollados</label>
-                                            <textarea 
+                                            <textarea
                                                 value={registroLibro.contenidos}
                                                 onChange={(e) => setRegistroLibro({...registroLibro, contenidos: e.target.value})}
                                                 placeholder="Describe los contenidos abordados en la clase..."
                                                 className="w-full p-3 border rounded-lg h-24 resize-none"
                                             />
                                         </div>
-
                                         <div>
                                             <label className="block mb-1 font-semibold text-sm">Actividades Realizadas</label>
-                                            <textarea 
+                                            <textarea
                                                 value={registroLibro.actividades}
                                                 onChange={(e) => setRegistroLibro({...registroLibro, actividades: e.target.value})}
                                                 placeholder="Describe las actividades realizadas durante la clase..."
                                                 className="w-full p-3 border rounded-lg h-24 resize-none"
                                             />
                                         </div>
-
                                         <div>
                                             <label className="block mb-1 font-semibold text-sm">Observaciones</label>
-                                            <textarea 
+                                            <textarea
                                                 value={registroLibro.observaciones}
                                                 onChange={(e) => setRegistroLibro({...registroLibro, observaciones: e.target.value})}
                                                 placeholder="Observaciones adicionales (opcional)..."
                                                 className="w-full p-3 border rounded-lg h-20 resize-none"
                                             />
                                         </div>
-
-                                        <button 
+                                        <button
                                             onClick={() => {
                                                 if (!registroLibro.fecha || !registroLibro.asignatura || !registroLibro.contenidos) {
                                                     alert('Completa al menos: fecha, asignatura y contenidos');
                                                     return;
                                                 }
-                                                const nuevos = { 
-                                                    ...libroTemas, 
-                                                    [claveLibro]: [...registrosLibro, { ...registroLibro, id: Date.now() }] 
+                                                const nuevos = {
+                                                    ...libroTemas,
+                                                    [claveLibro]: [...registrosLibro, { ...registroLibro, id: Date.now() }]
                                                 };
                                                 setLibroTemas(nuevos);
                                                 guardar('libroTemas', nuevos);
@@ -1360,7 +1665,6 @@ case 'libro':
                             </div>
                         );
                     }
-
                     return (
                         <div className="min-h-screen bg-gray-50 p-4">
                             <div className="max-w-4xl mx-auto">
@@ -1369,14 +1673,13 @@ case 'libro':
                                         <ArrowLeft className="w-6 h-6" />
                                     </button>
                                     <h2 className="text-2xl font-bold flex-1">Libro de Temas</h2>
-                                    <button 
+                                    <button
                                         onClick={() => setFormLibro(true)}
                                         className={`${col.p} text-white px-4 py-2 rounded-lg flex items-center gap-2`}>
                                         <Plus className="w-5 h-5" />
                                         Nuevo Registro
                                     </button>
                                 </div>
-
                                 <div className="space-y-4">
                                     {registrosLibro.sort((a, b) => b.fecha.localeCompare(a.fecha)).map(reg => (
                                         <div key={reg.id} className="bg-white p-6 rounded-lg shadow">
@@ -1385,7 +1688,7 @@ case 'libro':
                                                     <h3 className="text-xl font-bold">{reg.asignatura}</h3>
                                                     <p className="text-sm text-gray-600">{reg.fecha} {reg.folio && `• Folio: ${reg.folio}`}</p>
                                                 </div>
-                                                <button 
+                                                <button
                                                     onClick={() => {
                                                         if (window.confirm('¿Eliminar registro?')) {
                                                             const filtrados = registrosLibro.filter(r => r.id !== reg.id);
@@ -1398,44 +1701,39 @@ case 'libro':
                                                     <Trash2 className="w-5 h-5" />
                                                 </button>
                                             </div>
-
                                             <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
                                                 {reg.horas && (
                                                     <div className="bg-blue-50 p-2 rounded">
-                                                        <span className="font-semibold">Horas:</span> {reg.horas}
+                                                        <span className="font-semibold">Horas: </span>{reg.horas}
                                                     </div>
                                                 )}
                                                 {reg.alumnosPresentes && (
                                                     <div className="bg-green-50 p-2 rounded">
-                                                        <span className="font-semibold">Presentes:</span> {reg.alumnosPresentes}
+                                                        <span className="font-semibold">Presentes: </span>{reg.alumnosPresentes}
                                                     </div>
                                                 )}
                                                 {reg.alumnosAusentes && (
                                                     <div className="bg-red-50 p-2 rounded">
-                                                        <span className="font-semibold">Ausentes:</span> {reg.alumnosAusentes}
+                                                        <span className="font-semibold">Ausentes: </span>{reg.alumnosAusentes}
                                                     </div>
                                                 )}
                                             </div>
-
                                             {reg.unidad && (
                                                 <div className="mb-3">
                                                     <p className="text-sm font-semibold text-gray-600">Unidad Temática</p>
                                                     <p className={`${col.s} ${col.t} p-2 rounded font-semibold`}>{reg.unidad}</p>
                                                 </div>
                                             )}
-
                                             <div className="mb-3">
                                                 <p className="text-sm font-semibold text-gray-600 mb-1">Contenidos Desarrollados</p>
                                                 <p className="text-sm bg-gray-50 p-3 rounded">{reg.contenidos}</p>
                                             </div>
-
                                             {reg.actividades && (
                                                 <div className="mb-3">
                                                     <p className="text-sm font-semibold text-gray-600 mb-1">Actividades Realizadas</p>
                                                     <p className="text-sm bg-gray-50 p-3 rounded">{reg.actividades}</p>
                                                 </div>
                                             )}
-
                                             {reg.observaciones && (
                                                 <div>
                                                     <p className="text-sm font-semibold text-gray-600 mb-1">Observaciones</p>
@@ -1444,13 +1742,12 @@ case 'libro':
                                             )}
                                         </div>
                                     ))}
-
                                     {registrosLibro.length === 0 && (
                                         <div className="bg-white p-12 rounded-lg shadow text-center">
                                             <FileText className="w-16 h-16 mx-auto text-gray-300 mb-4" />
                                             <h3 className="text-xl font-bold text-gray-400 mb-2">Sin registros</h3>
                                             <p className="text-gray-500 mb-4">Aún no hay registros en el libro de temas</p>
-                                            <button 
+                                            <button
                                                 onClick={() => setFormLibro(true)}
                                                 className={`${col.p} text-white px-6 py-3 rounded-lg flex items-center gap-2 mx-auto`}>
                                                 <Plus className="w-5 h-5" />
@@ -1462,7 +1759,8 @@ case 'libro':
                             </div>
                         </div>
                     );
-case 'planner-mensual':
+
+                case 'planner-mensual':
                     const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
                     const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
                     
@@ -1473,7 +1771,6 @@ case 'planner-mensual':
                         const ultimoDia = new Date(año, mes + 1, 0);
                         const diasEnMes = ultimoDia.getDate();
                         const primerDiaSemana = primerDia.getDay();
-                        
                         const dias = [];
                         for (let i = 0; i < primerDiaSemana; i++) {
                             dias.push(null);
@@ -1506,9 +1803,9 @@ case 'planner-mensual':
                     const esHoy = (dia) => {
                         if (!dia) return false;
                         const hoy = new Date();
-                        return hoy.getDate() === dia && 
-                               hoy.getMonth() === mesActual.getMonth() && 
-                               hoy.getFullYear() === mesActual.getFullYear();
+                        return hoy.getDate() === dia &&
+                            hoy.getMonth() === mesActual.getMonth() &&
+                            hoy.getFullYear() === mesActual.getFullYear();
                     };
 
                     const tiposEventos = {
@@ -1523,7 +1820,7 @@ case 'planner-mensual':
                         const fechaKey = formatearFecha(diaSeleccionado);
                         const eventosDelDia = eventosCalendario[fechaKey] || [];
                         const notasDelDia = notasPlanner[fechaKey] || '';
-
+                        
                         return (
                             <div className="min-h-screen bg-gray-50 p-4">
                                 <div className="max-w-2xl mx-auto">
@@ -1536,11 +1833,10 @@ case 'planner-mensual':
                                             <p className="text-sm text-gray-600">{diasSemana[new Date(mesActual.getFullYear(), mesActual.getMonth(), diaSeleccionado).getDay()]}</p>
                                         </div>
                                     </div>
-
                                     <div className="bg-white p-4 rounded-lg shadow mb-4">
                                         <h3 className="font-bold mb-3">Agregar Evento</h3>
                                         <div className="space-y-3">
-                                            <input 
+                                            <input
                                                 type="text"
                                                 value={textoEvento}
                                                 onChange={(e) => setTextoEvento(e.target.value)}
@@ -1557,12 +1853,12 @@ case 'planner-mensual':
                                                     </button>
                                                 ))}
                                             </div>
-                                            <button 
+                                            <button
                                                 onClick={() => {
                                                     if (textoEvento.trim()) {
-                                                        const nuevosEventos = { 
-                                                            ...eventosCalendario, 
-                                                            [fechaKey]: [...eventosDelDia, { id: Date.now(), texto: textoEvento, tipo: tipoEvento }] 
+                                                        const nuevosEventos = {
+                                                            ...eventosCalendario,
+                                                            [fechaKey]: [...eventosDelDia, { id: Date.now(), texto: textoEvento, tipo: tipoEvento }]
                                                         };
                                                         setEventosCalendario(nuevosEventos);
                                                         guardar('eventosCalendario', nuevosEventos);
@@ -1575,7 +1871,6 @@ case 'planner-mensual':
                                             </button>
                                         </div>
                                     </div>
-
                                     <div className="bg-white p-4 rounded-lg shadow mb-4">
                                         <h3 className="font-bold mb-3">Eventos del Día</h3>
                                         {eventosDelDia.length === 0 ? (
@@ -1588,7 +1883,7 @@ case 'planner-mensual':
                                                             <span className="font-semibold">{evento.texto}</span>
                                                             <span className="text-xs ml-2 opacity-70">({tiposEventos[evento.tipo].nombre})</span>
                                                         </div>
-                                                        <button 
+                                                        <button
                                                             onClick={() => {
                                                                 const filtrados = eventosDelDia.filter(e => e.id !== evento.id);
                                                                 const nuevosEventos = { ...eventosCalendario, [fechaKey]: filtrados };
@@ -1603,10 +1898,9 @@ case 'planner-mensual':
                                             </div>
                                         )}
                                     </div>
-
                                     <div className="bg-white p-4 rounded-lg shadow">
                                         <h3 className="font-bold mb-3">Notas del Día</h3>
-                                        <textarea 
+                                        <textarea
                                             value={notasDelDia}
                                             onChange={(e) => {
                                                 const nuevasNotas = { ...notasPlanner, [fechaKey]: e.target.value };
@@ -1633,7 +1927,6 @@ case 'planner-mensual':
                                     </button>
                                     <h2 className="text-2xl font-bold flex-1">Planner Mensual</h2>
                                 </div>
-
                                 <div className="bg-white rounded-lg shadow p-4 mb-4">
                                     <div className="flex items-center justify-between mb-4">
                                         <button onClick={mesAnterior} className="p-2 hover:bg-gray-100 rounded-lg">
@@ -1644,24 +1937,21 @@ case 'planner-mensual':
                                             <ChevronRight className="w-6 h-6" />
                                         </button>
                                     </div>
-
                                     <div className="grid grid-cols-7 gap-2">
                                         {diasSemana.map(dia => (
                                             <div key={dia} className={`${col.p} text-white p-2 text-center font-bold text-sm rounded-t-lg`}>
                                                 {dia}
                                             </div>
                                         ))}
-                                        
                                         {diasDelMes.map((dia, idx) => {
                                             if (!dia) {
                                                 return <div key={`empty-${idx}`} className="aspect-square"></div>;
                                             }
-
                                             const fechaKey = formatearFecha(dia);
                                             const eventosDelDia = eventosCalendario[fechaKey] || [];
                                             const tieneNotas = notasPlanner[fechaKey]?.trim();
                                             const hoy = esHoy(dia);
-
+                                            
                                             return (
                                                 <button
                                                     key={dia}
@@ -1690,7 +1980,6 @@ case 'planner-mensual':
                                         })}
                                     </div>
                                 </div>
-
                                 <div className="bg-white rounded-lg shadow p-4">
                                     <h3 className="font-bold mb-3">Leyenda</h3>
                                     <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
