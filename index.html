@@ -275,41 +275,57 @@ const SUPABASE_ANON_KEY = 'sb_publishable_Klvhpaqc4dP3Zxht0-rkew_MG3HjFdI';
             };
 
             const cargar = async () => {
-                try {
-                    const datos = await Promise.all([
-                        window.storage.get('docente'),
-                        window.storage.get('escuelas'),
-                        window.storage.get('materias'),
-                        window.storage.get('cursos'),
-                        window.storage.get('alumnos'),
-                        window.storage.get('asistencias'),
-                        window.storage.get('notas'),
-                        window.storage.get('libroTemas'),
-                        window.storage.get('tema'),
-                        window.storage.get('horarios'),
-                        window.storage.get('horasPersonalizadas'),
-                        window.storage.get('eventosCalendario'),
-                        window.storage.get('notasPlanner')
-                    ]);
-                    
-                    if (datos[0]?.value) setDocente(datos[0].value);
-                    if (datos[1]?.value) setEscuelas(JSON.parse(datos[1].value));
-                    if (datos[2]?.value) setMaterias(JSON.parse(datos[2].value));
-                    if (datos[3]?.value) setCursos(JSON.parse(datos[3].value));
-                    if (datos[4]?.value) setAlumnos(JSON.parse(datos[4].value));
-                    if (datos[5]?.value) setAsistencias(JSON.parse(datos[5].value));
-                    if (datos[6]?.value) setNotas(JSON.parse(datos[6].value));
-                    if (datos[7]?.value) setLibroTemas(JSON.parse(datos[7].value));
-                    if (datos[8]?.value) setTema(datos[8].value);
-                    if (datos[9]?.value) setHorarios(JSON.parse(datos[9].value));
-                    if (datos[10]?.value) setHorasPersonalizadas(JSON.parse(datos[10].value));
-                    if (datos[11]?.value) setEventosCalendario(JSON.parse(datos[11].value));
-                    if (datos[12]?.value) setNotasPlanner(JSON.parse(datos[12].value));
-                } catch (err) {
-                    console.log('Primera vez o error cargando:', err);
-                }
-            };
+    try {
+        // Cargar con timeout para evitar esperas infinitas
+        const cargarConTimeout = async (promesa, valorDefecto = null) => {
+            try {
+                const resultado = await Promise.race([
+                    promesa,
+                    new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Timeout')), 5000)
+                    )
+                ]);
+                return resultado;
+            } catch (err) {
+                console.log('Error cargando dato:', err);
+                return valorDefecto;
+            }
+        };
 
+        const datos = await Promise.all([
+            cargarConTimeout(window.storage.get('docente'), { value: '' }),
+            cargarConTimeout(window.storage.get('escuelas'), { value: '[]' }),
+            cargarConTimeout(window.storage.get('materias'), { value: '{}' }),
+            cargarConTimeout(window.storage.get('cursos'), { value: '{}' }),
+            cargarConTimeout(window.storage.get('alumnos'), { value: '{}' }),
+            cargarConTimeout(window.storage.get('asistencias'), { value: '{}' }),
+            cargarConTimeout(window.storage.get('notas'), { value: '{}' }),
+            cargarConTimeout(window.storage.get('libroTemas'), { value: '{}' }),
+            cargarConTimeout(window.storage.get('tema'), { value: 'azul' }),
+            cargarConTimeout(window.storage.get('horarios'), { value: '{}' }),
+            cargarConTimeout(window.storage.get('horasPersonalizadas'), { value: '{}' }),
+            cargarConTimeout(window.storage.get('eventosCalendario'), { value: '{}' }),
+            cargarConTimeout(window.storage.get('notasPlanner'), { value: '{}' })
+        ]);
+        
+        if (datos[0]?.value) setDocente(datos[0].value);
+        if (datos[1]?.value) setEscuelas(JSON.parse(datos[1].value));
+        if (datos[2]?.value) setMaterias(JSON.parse(datos[2].value));
+        if (datos[3]?.value) setCursos(JSON.parse(datos[3].value));
+        if (datos[4]?.value) setAlumnos(JSON.parse(datos[4].value));
+        if (datos[5]?.value) setAsistencias(JSON.parse(datos[5].value));
+        if (datos[6]?.value) setNotas(JSON.parse(datos[6].value));
+        if (datos[7]?.value) setLibroTemas(JSON.parse(datos[7].value));
+        if (datos[8]?.value) setTema(datos[8].value);
+        if (datos[9]?.value) setHorarios(JSON.parse(datos[9].value));
+        if (datos[10]?.value) setHorasPersonalizadas(JSON.parse(datos[10].value));
+        if (datos[11]?.value) setEventosCalendario(JSON.parse(datos[11].value));
+        if (datos[12]?.value) setNotasPlanner(JSON.parse(datos[12].value));
+    } catch (err) {
+        console.log('Error general cargando datos:', err);
+        // Continuar normalmente con datos vacíos
+    }
+};
             const guardar = async (clave, valor) => {
                 try {
                     const dato = typeof valor === 'string' ? valor : JSON.stringify(valor);
