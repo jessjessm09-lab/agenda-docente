@@ -137,6 +137,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_Klvhpaqc4dP3Zxht0-rkew_MG3HjFdI';
             const [password, setPassword] = useState('');
             const [errorAuth, setErrorAuth] = useState('');
             const [sincronizando, setSincronizando] = useState(false);
+            const [editandoNombre, setEditandoNombre] = useState(false);
             
             const [pantalla, setPantalla] = useState('inicio');
             const [docente, setDocente] = useState('');
@@ -525,21 +526,42 @@ const SUPABASE_ANON_KEY = 'sb_publishable_Klvhpaqc4dP3Zxht0-rkew_MG3HjFdI';
                                             <LogOut className="w-5 h-5" />
                                         </button>
                                     </div>
-                                    {docente ? (
-                                        <p className="text-xl">Prof. {docente}</p>
-                                    ) : (
-                                        <input
-                                            type="text"
-                                            placeholder="Tu nombre"
-                                            onBlur={(e) => {
-                                                if (e.target.value.trim()) {
-                                                    setDocente(e.target.value);
-                                                    guardar('docente', e.target.value);
-                                                }
-                                            }}
-                                            className="w-full p-2 rounded text-gray-800"
-                                        />
-                                    )}
+                                   <div className="flex items-center gap-2">
+    {!editandoNombre ? (
+        <>
+            <p className="text-xl flex-1">
+                Prof. {docente || 'Sin nombre'}
+            </p>
+            <button
+                onClick={() => setEditandoNombre(true)}
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 p-2 rounded-lg transition"
+                title="Editar nombre">
+                <Edit2 className="w-4 h-4" />
+            </button>
+        </>
+    ) : (
+        <div className="flex gap-2 w-full">
+            <input
+                type="text"
+                value={docente}
+                onChange={(e) => setDocente(e.target.value)}
+                placeholder="Tu nombre"
+                className="flex-1 p-2 rounded text-gray-800"
+                autoFocus
+            />
+            <button
+                onClick={() => {
+                    if (docente.trim()) {
+                        guardar('docente', docente);
+                        setEditandoNombre(false);
+                    }
+                }}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700">
+                Guardar
+            </button>
+        </div>
+    )}
+</div>
                                     <div className="mt-3 flex items-center gap-2 text-sm opacity-90">
                                         <Cloud className="w-4 h-4" />
                                         <span>Sincronizado en la nube</span>
