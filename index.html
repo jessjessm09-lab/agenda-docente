@@ -49,7 +49,6 @@ const { useState, useEffect } = React;
 // ✅ CONFIGURACIÓN SUPABASE CORREGIDA
 const SUPABASE_URL = 'https://wzuujtzhhzxmidebdopt.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6dXVqdHpoaHp4bWlkZWJkb3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2NTgxMTUsImV4cCI6MjA4NDIzNDExNX0.lfUT7jXKujkjsZohAmYbh37b__zor4qOBMgXqdNVtj0';
-
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ✅ CORRECCIÓN 1: FUNCIÓN PARA TRUNCAR (NO REDONDEAR) A 2 DECIMALES
