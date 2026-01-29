@@ -173,6 +173,7 @@ const Lock = (p) => <svg {...p} fill="none" stroke="currentColor" viewBox="0 0 2
 const AgendaDocente = () => {
   const [usuario, setUsuario] = useState(null);
   const [cargandoAuth, setCargandoAuth] = useState(true);
+   const [cargandoDatos, setCargandoDatos] = useState(true);
   const [pantallaAuth, setPantallaAuth] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -378,6 +379,7 @@ const AgendaDocente = () => {
   };
 
   const cargar = async () => {
+    setCargandoDatos(true);
     try {
       const datosCriticos = await Promise.all([
         window.storage.get('docente'),
@@ -411,9 +413,11 @@ const AgendaDocente = () => {
         if (datos[7]?.value) setHorasPersonalizadas(JSON.parse(datos[7].value));
         if (datos[8]?.value) setEventosCalendario(JSON.parse(datos[8].value));
         if (datos[9]?.value) setNotasPlanner(JSON.parse(datos[9].value));
+        setCargandoDatos(false);
       });
     } catch (err) {
       console.error('Error cargando datos:', err);
+      setCargandoDatos(false);
     }
   };
 
@@ -586,6 +590,16 @@ const AgendaDocente = () => {
   // RENDERIZADO SEGÚN PANTALLA
   switch(pantalla) {
     case 'inicio':
+       if (cargandoDatos) {
+        return (
+          <div className={`min-h-screen ${col.fondo} flex items-center justify-center`}>
+            <div className="text-center">
+              <div className="spinner mb-4"></div>
+              <p className={col.texto}>Cargando datos...</p>
+            </div>
+          </div>
+        );
+      }
       return (
         <div className={`min-h-screen ${col.fondo} p-4`}>
           <div className="max-w-2xl mx-auto space-y-4">
